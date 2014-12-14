@@ -1,25 +1,124 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Course project 1"
+date: "Sunday, December 14, 2014"
+output: html_document
 ---
 
+###Introduction and first observations
 
-## Loading and preprocessing the data
+The goal of this assignment is to study personal movement using activity monitoring device. This device collects data at 5 minute intervals through out the data.
+
+The dataset is called *activity* and contains 17568 observations that contains the following information:
+
+* **steps**: number of steps taking in a 5-minute interval (there may be missing values codes as NA).
+* **date**: the date on which the measurement vas taken in YYYY-MM-DD format.
+* **interval**: the 5-minute interval in which the measurement was taken.
+
+```{r, echo=TRUE}
+activity = read.csv("activity.csv", header = T, colClasses = c("numeric", "Date", "numeric"))
+```
+
+Once we have the dataset activity with the information, we make exploratory analysis. So, first, we make a histogram of the total number of steps taken each day. For this purpouse, we obtain a new dataset called *steps* that contains all the steps taken per day and then, we use the package *ggplot2* and plot a histogram.
+
+```{r, echo=TRUE}
+library(ggplot2)
+steps = aggregate(steps ~ date, data = activity, FUN="sum", na.rm=TRUE)
+ggplot(data = steps, aes(steps)) + geom_histogram(colour = "black", fill = "white", binwidth = 5000) + xlab("number of steps") + ylab("count") + ggtitle("Total number of steps taken each date")
+```
+
+Note that in this plot, we omit all the missing values that are in the dataset.
+
+Another interesting thing that we should calculate is the mean and the median of the total number of steps taken per day. So, we take the dataset steps that we have created previously and we apply the R functions *mean* and *median*.
+
+```{r, echo=TRUE}
+me = format(mean(steps$steps), digits = 9, decimal.mark = ".")
+med = format(median(steps$steps), digits = 9, decimal.mark = ".")
+```
+
+The mean of the data is `r me` and the median is `r med`.
 
 
+###Time series plots
 
-## What is mean total number of steps taken per day?
-
-
-
-## What is the average daily activity pattern?
+The next step is to plot a time series that contains the average number of steps taken of the 5-minute interval. So, again, we preprocess the data and we obtain a new dataset, *intervals*, that contains the average steps at each 5-minute interval. Then, with the *ggplot* function we obtain the following result.
 
 
+```{r, echo=TRUE}
+intervals = aggregate(steps ~ interval, data = activity, FUN = "mean", na.rm = TRUE)
+ggplot(data = intervals, aes(x = interval, y = steps)) + geom_line(col = "blue") + xlab("time interval") + ylab("average steps") + ggtitle("Average steps taken at each 5-minutes interval")
+```
 
-## Imputing missing values
+Note that the 5-minute interval that contains the maximum number of steps is `r intervals$interval[intervals$steps == max(intervals$steps)]`.
 
 
+###Missing values
 
-## Are there differences in activity patterns between weekdays and weekends?
+As we can see, we have been omiting all the missing values to create the plots and the datasets. Now, let's study the missing values. First of all, let's determine the number of missing values in the dataset *activity*.
+
+
+```{r, echo=TRUE}
+num.na = sum(as.numeric(is.na(activity$steps)))
+```
+
+The number of missing vaues in the original dataset is `r num.na`.
+
+Now, let's fill in the missing values with the average steps for the 5-minute interval. So, we have to determine which is the mean at each 5-minute interval.
+```{r, echo=TRUE}
+intervals_mean = aggregate(steps ~ interval, data = activity, FUN = "mean", na.rm = TRUE)
+missing = activity[is.na(activity$steps),]
+activity = activity[!is.na(activity$steps),]
+missing = missing[,-1]
+missing = merge(missing, intervals_mean, by.x = "interval", by.y = "interval")
+activity = rbind(activity, missing)
+```
+
+Once we have filled in the missing values, we make a histogram of the total number of steps taken each day. The process to obtain the histogram is the same as the one we have applied previously.
+
+```{r, echo=TRUE}
+steps = aggregate(steps ~ date, data = activity, FUN = "sum")
+ggplot(data = steps, aes(steps)) + geom_histogram(colour = "black", fill = "white", binwidth = 5000) + xlab("number of steps") + ylab("count") + ggtitle("Total number of steps taken each date")
+
+```
+
+Again, we compute the mean and the median of this new dataset,
+
+```{r, echo=TRUE}
+me = format(mean(steps$steps), digits = 9, decimal.mark = ".")
+med = format(median(steps$steps), digits = 9, decimal.mark = ".")
+```
+
+and we have that the mean of the data is `r me` and the median is `r med`.
+
+As we can observe, these results differ a bit from the ones we have seen in the previous section. We can see that the mean doesn't differ from one case to the other one. This is because, to fill in the missing values we have taken the mean of the total steps at each time interval. 
+
+On the other hand, the median is different. The reason is that we have added some observations that moves the median upwards (remember that the median returns the point where we have the 50% of the data).
+
+###Are there differences in activity patterns between weekdays and weekends?
+
+Finally, we want to study the difference in activity between weekdays and weekends. So, we have to assign first to each date a factor variable that says if the day is a weekday or not. We use the function *weekdays* and then we assign the factor variable.
+
+```{r, echo=TRUE}
+
+Sys.setlocale("LC_TIME", "English")
+days = weekdays(activity$date)
+weekday = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+weekend = c("Saturday", "Sunday")
+days[days %in% weekday] = "Weekday"
+days[days %in% weekend] = "Weekend"
+activity = cbind(activity, days)
+```
+
+Once we have classified the dates, we plot the average number of steps taken of the 5-minute interval for the weekday days and the weekend days.
+
+```{r, echo=TRUE}
+library(lattice)
+activity$days = as.factor(activity$days)
+weekday = activity[activity$days == "Weekday",]
+weekday = aggregate(steps ~ interval, data = weekday, FUN = "mean", na.rm = TRUE)
+weekday = cbind(weekday, days = "weekday")
+weekend = activity[activity$days == "Weekend",]
+weekend = aggregate(steps ~ interval, data = weekend, FUN = "mean", na.rm = TRUE)
+weekend = cbind(weekend, days = "weekend")
+activity = rbind(weekday, weekend)
+xyplot(steps ~ interval | days, data = activity, layout = c(1,2), type = "l")
+```
